@@ -16,7 +16,7 @@ image = ImageGenerator(COOKIES_U, COOKIES_SRCHHPGUSR)
 logger = LoggerHandler()
 
 
-@app.on_message(filters.command(["ai", "image", "khodam"))
+@app.on_message(filters.command(["ai", "image", "khodam")]))
 async def main_command(client, message):
     command = message.command[0]
     getarg = Argument().getMessage(message, is_arg=True)
