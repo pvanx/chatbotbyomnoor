@@ -6,8 +6,8 @@ from config import (
     COOKIES_U,
     GEMINI_API_KEY,
 )
-from nsdev import ChatbotGemini, ImageGenerator, LoggerHandler, Argument 
-from pyrogram import Client, filters 
+from nsdev import Argument, ChatbotGemini, ImageGenerator, LoggerHandler
+from pyrogram import Client, filters
 
 app = Client(name="genai", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
@@ -27,6 +27,6 @@ async def main_command(client, message):
     if command == "ai":
         pass
     if command == "image":
-        pass 
+        pass
     if command == "khodam":
         pass
