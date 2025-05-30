@@ -40,7 +40,7 @@ async def main_command(client, message):
 
     if command == "image":
         try:
-            result = await image.generate(getarg, int(db.getVars(client.me.id, "COUNT_PHOTO")) or 1)
+            result = await image.generate(getarg, int(db.getVars(client.me.id, "COUNT_PHOTO") or 1))
             media = [InputMediaPhoto(photo) for photo in result]
             await asyncio.gather(msg.delete(), client.send_media_group(message.chat.id, media, reply_to_message_id=message.id))
         except Exception as error:
@@ -60,5 +60,5 @@ async def main_command(client, message):
             await asyncio.gather(msg.delete(), message.reply("**Jumlah harus berupa angka**"))
 
 
-logger.print(f"{logger.WHITE}{argument.getNamebot(BOT_TOKEN)} {logger.PURPLE}| {logger.GREEN}berhasil dijalankan")
+logger.print(f"{logger.CYAN}{argument.getNamebot(BOT_TOKEN)} {logger.PURPLE}| {logger.GREEN}berhasil dijalankan")
 app.run()
