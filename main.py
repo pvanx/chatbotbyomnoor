@@ -4,6 +4,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import List, Optional, Union
 from time import time
+from functools import wraps
+from concurrent.futures import ThreadPoolExecutor
 
 from dotenv import load_dotenv
 from nsdev import (
@@ -37,32 +39,33 @@ class Config:
             GEMINI_API_KEY=os.getenv("GEMINI_API_KEY", "")
         )
 
-class RateLimiter:
-    
-    def __init__(self, requests_limit: int = 5, time_window: int = 60):
-        self._requests_limit = requests_limit
-        self._time_window = time_window
-        self._user_requests: defaultdict = defaultdict(list)
+class ServiceRateLimiter:
+    def __init__(self, limits: dict):
+        self._limits = limits
+        self._requests = defaultdict(lambda: defaultdict(list))
 
-    def is_rate_limited(self, user_id: int) -> bool:
-     
+    async def check_limit(self, service: str, user_id: int) -> tuple[bool, float]:
         current_time = time()
-        user_requests = self._user_requests[user_id]
+        requests = self._requests[service][user_id]
         
-        user_requests = [
-            timestamp for timestamp in user_requests
-            if current_time - timestamp < self._time_window
-        ]
-        self._user_requests[user_id] = user_requests
+        requests = [t for t in requests if current_time - t < self._limits[service]["window"]]
+        self._requests[service][user_id] = requests
         
-        if len(user_requests) >= self._requests_limit:
-            return True
-            
-        user_requests.append(current_time)
-        return False
+        if len(requests) >= self._limits[service]["max_requests"]:
+            wait_time = self._limits[service]["window"] - (current_time - requests[0])
+            return True, wait_time
+        
+        requests.append(current_time)
+        return False, 0.0
+
+def to_async(func):
+    @wraps(func)
+    async def wrapper(*args, **kwargs):
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, lambda: func(*args, **kwargs))
+    return wrapper
 
 class TelegramBot:
-    
     def __init__(self, config: Config):
         self.config = config
         self.client = Client(
@@ -71,7 +74,7 @@ class TelegramBot:
             api_hash=config.API_HASH,
             bot_token=config.BOT_TOKEN
         )
-        
+
         self.argument = Argument()
         self.chatbot = ChatbotGemini(config.GEMINI_API_KEY)
         self.db = DataBase(
@@ -84,29 +87,58 @@ class TelegramBot:
             config.COOKIES_SRCHHPGUSR
         )
         self.logger = LoggerHandler()
-        self.rate_limiter = RateLimiter(requests_limit=5, time_window=60)
+        self._executor = ThreadPoolExecutor(max_workers=10)
         
+        service_limits = {
+            "telegram": {"max_requests": 20, "window": 60},
+            "gemini": {"max_requests": 60, "window": 60},
+            "image": {"max_requests": 10, "window": 60}
+        }
+        self.service_limiter = ServiceRateLimiter(service_limits)
+        self.rate_limiter = RateLimiter(requests_limit=5, time_window=60)
+
         self.register_handlers()
 
     def register_handlers(self) -> None:
-        @self.client.on_message(filters.command(["ai", "image", "khodam", "setcountphoto"]))
+        @self.client.on_message(filters.command(["ai", "image", "khodam", "setcountphoto", "ping"]))
         async def handle_commands(client: Client, message: Message) -> None:
             await self._process_command(message)
 
+    async def _async_chat_message(self, *args, **kwargs):
+        return await to_async(self.chatbot.send_chat_message)(*args, **kwargs)
+    
+    async def _async_khodam_message(self, *args, **kwargs):
+        return await to_async(self.chatbot.send_khodam_message)(*args, **kwargs)
+    
+    async def _async_db_get(self, *args, **kwargs):
+        return await to_async(self.db.getVars)(*args, **kwargs)
+    
+    async def _async_db_set(self, *args, **kwargs):
+        return await to_async(self.db.setVars)(*args, **kwargs)
+
     async def _process_command(self, message: Message) -> None:
-        if self.rate_limiter.is_rate_limited(message.from_user.id):
-            await message.reply("**tunggu beberapa saat sebelum mengirim perintah lagi.**")
+        command = message.command[0]
+        user_id = message.from_user.id
+
+        if command == "ping":
+            start_time = time()
+            msg = await message.reply("**cek latensi botanj...**")
+            end_time = time()
+            await msg.edit(f"**latency: {round((end_time - start_time) * 1000)}ms**")
             return
 
-        command = message.command[0]
-        args = self.argument.getMessage(message, is_arg=True)
+        is_limited, wait_time = await self.service_limiter.check_limit("telegram", user_id)
+        if is_limited:
+            await message.reply(f"**mohon tunggu {round(wait_time)} detik sebelum mengirim pesan lagi.**")
+            return
 
+        args = self.argument.getMessage(message, is_arg=True)
         if not args:
-            await message.reply("**silahkan gunakan perintah sambil masukkan yang kamu inginkan**")
+            await message.reply("**silahkan gunakan perintah sambil masukkan prompt yang kamu inginkan**")
             return
 
         status_message = await message.reply("**sedang memproses...**")
-        
+
         try:
             await self._execute_command(command, args, message, status_message)
         except Exception as e:
@@ -122,16 +154,24 @@ class TelegramBot:
         message: Message,
         status_message: Message
     ) -> None:
+        user_id = message.from_user.id
+
         if command == "ai":
-            result = self.chatbot.send_chat_message(
-                args,
-                message.from_user.id,
-                self.client.me.first_name
-            )
+            is_limited, wait_time = await self.service_limiter.check_limit("gemini", user_id)
+            if is_limited:
+                await status_message.edit(f"**Mohon tunggu {round(wait_time)} detik sebelum menggunakan lagi.**")
+                return
+
+            result = await self._async_chat_message(args, user_id, self.client.me.first_name)
             await self._send_response(status_message, message, result)
 
         elif command == "image":
-            count = int(self.db.getVars(self.client.me.id, "COUNT_PHOTO") or 1)
+            is_limited, wait_time = await self.service_limiter.check_limit("image", user_id)
+            if is_limited:
+                await status_message.edit(f"**mohon tunggu {round(wait_time)} detik sebelum generate gambar lagi.**")
+                return
+
+            count = int(await self._async_db_get(self.client.me.id, "COUNT_PHOTO") or 1)
             images = await self.image_gen.generate(args, count)
             media = [InputMediaPhoto(photo) for photo in images]
             await asyncio.gather(
@@ -140,14 +180,19 @@ class TelegramBot:
             )
 
         elif command == "khodam":
-            result = self.chatbot.send_khodam_message(args)
+            is_limited, wait_time = await self.service_limiter.check_limit("gemini", user_id)
+            if is_limited:
+                await status_message.edit(f"**mohon tunggu {round(wait_time)} detik sebelum menggunakan Khodam lagi.**")
+                return
+
+            result = await self._async_khodam_message(args)
             await self._send_response(status_message, message, result)
 
         elif command == "setcountphoto":
             if not args.isdigit():
-                raise ValueError("jumlah harus berupa angka**")
-                
-            self.db.setVars(self.client.me.id, "COUNT_PHOTO", args)
+                raise ValueError("**jumlah harus berupa angka**")
+            
+            await self._async_db_set(self.client.me.id, "COUNT_PHOTO", args)
             await self._send_response(
                 status_message,
                 message,
