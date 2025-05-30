@@ -56,8 +56,8 @@ async def main_command(client, message):
             await asyncio.gather(
                 msg.delete(), message.reply(f"**Jumlah gambar yang akan di generate berhasil diubah ke {getarg}**")
             )
-        except Exception as error:
-            await asyncio.gather(msg.delete(), message.reply(error))
+        except Exception:
+            await asyncio.gather(msg.delete(), message.reply("**Jumlah harus berupa angka**"))
 
 
 logger.print(f"{logger.WHITE}{argument.getNameBot(BOT_TOKEN)} {logger.PURPLE}| {logger.GREEN}berhasil dijalankan")
