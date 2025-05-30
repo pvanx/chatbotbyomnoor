@@ -60,5 +60,5 @@ async def main_command(client, message):
             await asyncio.gather(msg.delete(), message.reply("**Jumlah harus berupa angka**"))
 
 
-logger.print(f"{logger.WHITE}{argument.getNameBot(BOT_TOKEN)} {logger.PURPLE}| {logger.GREEN}berhasil dijalankan")
+logger.print(f"{logger.WHITE}{argument.getNamebot(BOT_TOKEN)} {logger.PURPLE}| {logger.GREEN}berhasil dijalankan")
 app.run()
