@@ -2,7 +2,7 @@ from nsdev import Argument, ChatbotGemini, ImageGenerator, LoggerHandler
 from pyrogram import Client, filters
 from pyrogram.types import InputMediaPhoto
 from dotenv import load_dotenv 
-import os
+import os, asyncio
 
 load_dotenv()
 
