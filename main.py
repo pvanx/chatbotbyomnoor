@@ -1,4 +1,4 @@
-from nsdev import Argument, ChatbotGemini, ImageGenerator, LoggerHandler
+from nsdev import Argument, ChatbotGemini, ImageGenerator, LoggerHandler, DataBase 
 from pyrogram import Client, filters
 from pyrogram.types import InputMediaPhoto
 from dotenv import load_dotenv 
@@ -43,7 +43,7 @@ async def main_command(client, message):
     if command == "image":
         try:
             result = await image.generate(getarg, int(db.getVars(client.me.id, "COUNT_PHOTO")) or 1)
-            media = [InputMediaPhoto(photo) for photo in results]
+            media = [InputMediaPhoto(photo) for photo in result]
             await asyncio.gather(msg.delete(), client.send_media_group(message.chat.id, media, reply_to_message_id=message.id))
         except Exception as error:
             await asyncio.gather(msg.delete(), message.reply(error))
