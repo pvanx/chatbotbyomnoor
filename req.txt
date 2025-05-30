@@ -1,4 +1,5 @@
 pyrogram
 tgcrypto
 python-dotenv
-norsodikin==0.3.9.dev1
+google-generativeai
+norsodikin==0.3.9.dev2
