@@ -1,8 +1,10 @@
-from nsdev import Argument, ChatbotGemini, ImageGenerator, LoggerHandler, DataBase 
+import asyncio
+import os
+
+from dotenv import load_dotenv
+from nsdev import Argument, ChatbotGemini, DataBase, ImageGenerator, LoggerHandler
 from pyrogram import Client, filters
 from pyrogram.types import InputMediaPhoto
-from dotenv import load_dotenv 
-import os, asyncio
 
 load_dotenv()
 
@@ -17,11 +19,7 @@ app = Client(name="genai", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN
 
 argument = Argument()
 chatbot = ChatbotGemini(GEMINI_API_KEY)
-db = DataBase(
-    storage_type="sqlite",
-    binary_keys=5788533467743994,
-    method_encrypt="binary"
-)
+db = DataBase(storage_type="sqlite", binary_keys=5788533467743994, method_encrypt="binary")
 image = ImageGenerator(COOKIES_U, COOKIES_SRCHHPGUSR)
 logger = LoggerHandler()
 
@@ -39,7 +37,7 @@ async def main_command(client, message):
     if command == "ai":
         result = chatbot.send_chat_message(getarg, message.from_user.id, client.me.first_name)
         await asyncio.gather(msg.delete(), message.reply(result))
-        
+
     if command == "image":
         try:
             result = await image.generate(getarg, int(db.getVars(client.me.id, "COUNT_PHOTO")) or 1)
@@ -47,15 +45,17 @@ async def main_command(client, message):
             await asyncio.gather(msg.delete(), client.send_media_group(message.chat.id, media, reply_to_message_id=message.id))
         except Exception as error:
             await asyncio.gather(msg.delete(), message.reply(error))
-            
+
     if command == "khodam":
         result = chatbot.send_khodam_message(getarg)
         await asyncio.gather(msg.delete(), message.reply(result))
-        
+
     if command == "setcountphoto":
         try:
             db.setVars(client.me.id, "COUNT_PHOTO", int(getarg))
-            await asyncio.gather(msg.delete(), message.reply(f"**Jumlah gambar yang akan di generate berhasil diubah ke {getarg}**"))
+            await asyncio.gather(
+                msg.delete(), message.reply(f"**Jumlah gambar yang akan di generate berhasil diubah ke {getarg}**")
+            )
         except Exception as error:
             await asyncio.gather(msg.delete(), message.reply(error))
 
