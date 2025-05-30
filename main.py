@@ -53,7 +53,9 @@ async def main_command(client, message):
     if command == "setcountphoto":
         if getarg.isdigit():
             db.setVars(client.me.id, "COUNT_PHOTO", int(getarg))
-            await asyncio.gather(msg.delete(), message.reply(f"**Jumlah gambar yang akan di generate berhasil diubah ke {getarg}**"))
+            await asyncio.gather(
+                msg.delete(), message.reply(f"**Jumlah gambar yang akan di generate berhasil diubah ke {getarg}**")
+            )
         else:
             await asyncio.gather(msg.delete(), message.reply("**Jumlah harus berupa angka**"))
 
