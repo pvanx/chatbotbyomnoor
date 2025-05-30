@@ -3,3 +3,6 @@ tgcrypto
 python-dotenv
 google-generativeai
 norsodikin==0.3.9.dev2
+concurrent-futures-async==1.0.1
+aiohttp>=3.8.0
+typing-extensions>=4.0.0
